@@ -180,7 +180,7 @@ BTPrinter.printBase64(function(data){
 },function(err){
     console.log("Error");
     console.log(err);
-}, "Image Base64 String",'0');//base64 string, align
+}, "Image Base64 String",'0', '72');//base64 string, align, width (to be multiplied 8 times for 8 dots printers)
 ```
 
 ### Print title with size and align
