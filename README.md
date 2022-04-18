@@ -21,10 +21,10 @@ Thanks!
 
 ## Install
 
-Using the Cordova CLI and NPM, run:
+Using NPM, run:
 
 ```
-cordova plugin add https://github.com/CesarBalzer/Cordova-Plugin-BTPrinter.git
+npm install -git 
 ```
 
 ## Usage
