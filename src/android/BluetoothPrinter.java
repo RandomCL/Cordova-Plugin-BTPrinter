@@ -146,7 +146,8 @@ public class BluetoothPrinter extends CordovaPlugin {
                 String msg = args.getString(0);
                 Integer align = Integer.parseInt(args.getString(1));
                 Integer width = Integer.parseInt(args.getString(2));
-                printBase64(callbackContext, msg, align, width);
+                Integer resolution = Integer.parseInt(args.getString(3));
+                printBase64(callbackContext, msg, align, width, resolution);
             } catch (IOException e) {
                 Log.e(LOG_TAG, e.getMessage());
                 e.printStackTrace();
@@ -643,8 +644,12 @@ public class BluetoothPrinter extends CordovaPlugin {
         }
     }
 
-    // This will send data to bluetooth printer
-    boolean printBase64(CallbackContext callbackContext, String msg, Integer align, Integer width) throws IOException {
+    /**
+     * This will send data to bluetooth printer
+     * @param width ancho en mm
+     * @param resolution dots
+     */
+    boolean printBase64(CallbackContext callbackContext, String msg, Integer align, Integer width, Integer resolution) throws IOException {
         try {
 
             final String encodedString = msg;
@@ -657,13 +662,7 @@ public class BluetoothPrinter extends CordovaPlugin {
             int mWidth = bitmap.getWidth();
             int mHeight = bitmap.getHeight();
             
-            if (width < 10) {
-                width = 48;
-            } else if (width > 72) {
-                width = 72;
-            }
-
-            bitmap = resizeImage(bitmap, width * 8, mHeight);
+            bitmap = resizeImage(bitmap, width * resolution, mHeight);
 
             byte[] bt = decodeBitmapBase64(bitmap);
 
