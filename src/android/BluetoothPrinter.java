@@ -1,27 +1,26 @@
 package br.com.cordova.printer.bluetooth;
 
+import static android.Manifest.permission.BLUETOOTH_CONNECT;
+
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Hashtable;
 import java.util.Set;
 import java.util.UUID;
-
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
 import org.json.JSONArray;
 import org.json.JSONException;
-import org.json.JSONObject;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Handler;
 import android.util.Log;
-
-import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -30,8 +29,8 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Bitmap.Config;
 import android.text.TextUtils;
-import android.util.Xml.Encoding;
 import android.util.Base64;
+import androidx.core.app.ActivityCompat;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
@@ -88,128 +87,127 @@ public class BluetoothPrinter extends CordovaPlugin {
 
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
-        if (action.equals("status")) {
-            checkBTStatus(callbackContext);
-            return true;
-        } else if (action.equals("list")) {
-            listBT(callbackContext);
-            return true;
-        } else if (action.equals("connect")) {
-            String name = args.getString(0);
-            if (findBT(callbackContext, name)) {
-                try {
-                    connectBT(callbackContext);
-                } catch (IOException e) {
-                    Log.e(LOG_TAG, e.getMessage());
-                    e.printStackTrace();
-                }
-            } else {
-                callbackContext.error("BLUETOOTH DEVICE NOT FOUND: " + name);
-            }
-            return true;
-        } else if (action.equals("connected")) {
-            connected(callbackContext);
-            return true;
-        } else if (action.equals("disconnect")) {
-            try {
-                disconnectBT(callbackContext);
-            } catch (IOException e) {
-                Log.e(LOG_TAG, e.getMessage());
-                e.printStackTrace();
-            }
-            return true;
-        } else if (action.equals("setEncoding")) {
-            encoding = args.getString(0);
-            return true;
-        } else if (action.equals("printText")) {
-            try {
-                String msg = args.getString(0);
-                printText(callbackContext, msg);
-            } catch (IOException e) {
-                Log.e(LOG_TAG, e.getMessage());
-                e.printStackTrace();
-            }
-            return true;
-        } else if (action.equals("printTextSizeAlign")) {
-            try {
-                String msg = args.getString(0);
-                Integer size = Integer.parseInt(args.getString(1));
-                Integer align = Integer.parseInt(args.getString(2));
-                printTextSizeAlign(callbackContext, msg, size, align);
-            } catch (IOException e) {
-                Log.e(LOG_TAG, e.getMessage());
-                e.printStackTrace();
-            }
-            return true;
-        } else if (action.equals("printBase64")) {
-            try {
-                String msg = args.getString(0);
-                Integer align = Integer.parseInt(args.getString(1));
-                Integer width = Integer.parseInt(args.getString(2));
-                Integer resolution = Integer.parseInt(args.getString(3));
-                printBase64(callbackContext, msg, align, width, resolution);
-            } catch (IOException e) {
-                Log.e(LOG_TAG, e.getMessage());
-                e.printStackTrace();
-            }
-            return true;
-        } else if (action.equals("printImageUrl")) {
-            try {
-                String msg = args.getString(0);
-                Integer align = Integer.parseInt(args.getString(1));
-                printImageUrl(callbackContext, msg, align);
-            } catch (IOException e) {
-                Log.e(LOG_TAG, e.getMessage());
-                e.printStackTrace();
-            }
-            return true;
-        } else if (action.equals("printTitle")) {
-            try {
-                String msg = args.getString(0);
-                Integer size = Integer.parseInt(args.getString(1));
-                Integer align = Integer.parseInt(args.getString(2));
-                printTitle(callbackContext, msg, size, align);
-            } catch (IOException e) {
-                Log.e(LOG_TAG, e.getMessage());
-                e.printStackTrace();
-            }
-            return true;
-        } else if (action.equals("printPOSCommand")) {
-            try {
-                String msg = args.getString(0);
-                printPOSCommand(callbackContext, hexStringToBytes(msg));
-            } catch (IOException e) {
-                Log.e(LOG_TAG, e.getMessage());
-                e.printStackTrace();
-            }
-            return true;
-        } else if (action.equals("printQRCode")) {
-            try {
-                String data = args.getString(0);
-				Integer align = Integer.parseInt(args.getString(1));
-				Integer model = Integer.parseInt(args.getString(2));
-				Integer size = Integer.parseInt(args.getString(3));
-				Integer eclevel = Integer.parseInt(args.getString(4));
-				printQRCode(callbackContext, data, align, model, size, eclevel);
-            } catch (IOException e) {
-                Log.e(LOG_TAG, e.getMessage());
-                e.printStackTrace();
-            }
-            return true;
-        } else if (action.equals("printBarcode")) {
-            try {
-                Integer system = Integer.parseInt(args.getString(0));
-				String data = args.getString(1);
-				Integer align = Integer.parseInt(args.getString(2));
-                Integer position = Integer.parseInt(args.getString(3));
-                Integer font = Integer.parseInt(args.getString(4));
-                Integer height = Integer.parseInt(args.getString(5));
-				printBarcode(callbackContext, system, data, align, position, font, height);
-            } catch (IOException e) {
-                Log.e(LOG_TAG, e.getMessage());
-                e.printStackTrace();
-            }
-            return true;
+		switch (action) {
+			case "status":
+				return checkBTStatus(callbackContext);
+			case "list":
+				return listBT(callbackContext);
+			case "connect":
+				String name = args.getString(0);
+				if (findBT(callbackContext, name)) {
+					try {
+						return connectBT(callbackContext);
+					} catch (IOException e) {
+						Log.e(LOG_TAG, e.getMessage());
+						e.printStackTrace();
+						return false;
+					}
+				} else {
+					callbackContext.error("BLUETOOTH DEVICE NOT FOUND: " + name);
+					return false;
+				}
+			case "connected":
+				return connected(callbackContext);
+			case "disconnect":
+				try {
+					disconnectBT(callbackContext);
+				} catch (IOException e) {
+					Log.e(LOG_TAG, e.getMessage());
+					e.printStackTrace();
+				}
+				return true;
+			case "setEncoding":
+				encoding = args.getString(0);
+				return true;
+			case "printText":
+				try {
+					String msg = args.getString(0);
+					printText(callbackContext, msg);
+				} catch (IOException e) {
+					Log.e(LOG_TAG, e.getMessage());
+					e.printStackTrace();
+				}
+				return true;
+			case "printTextSizeAlign":
+				try {
+					String msg = args.getString(0);
+					Integer size = Integer.parseInt(args.getString(1));
+					Integer align = Integer.parseInt(args.getString(2));
+					printTextSizeAlign(callbackContext, msg, size, align);
+				} catch (IOException e) {
+					Log.e(LOG_TAG, e.getMessage());
+					e.printStackTrace();
+				}
+				return true;
+			case "printBase64":
+				try {
+					String msg = args.getString(0);
+					Integer align = Integer.parseInt(args.getString(1));
+					Integer width = Integer.parseInt(args.getString(2));
+					Integer resolution = Integer.parseInt(args.getString(3));
+					printBase64(callbackContext, msg, align, width, resolution);
+				} catch (IOException e) {
+					Log.e(LOG_TAG, e.getMessage());
+					e.printStackTrace();
+				}
+				return true;
+			case "printImageUrl":
+				try {
+					String msg = args.getString(0);
+					Integer align = Integer.parseInt(args.getString(1));
+					printImageUrl(callbackContext, msg, align);
+				} catch (IOException e) {
+					Log.e(LOG_TAG, e.getMessage());
+					e.printStackTrace();
+				}
+				return true;
+			case "printTitle":
+				try {
+					String msg = args.getString(0);
+					Integer size = Integer.parseInt(args.getString(1));
+					Integer align = Integer.parseInt(args.getString(2));
+					printTitle(callbackContext, msg, size, align);
+				} catch (IOException e) {
+					Log.e(LOG_TAG, e.getMessage());
+					e.printStackTrace();
+				}
+				return true;
+			case "printPOSCommand":
+				try {
+					String msg = args.getString(0);
+					printPOSCommand(callbackContext, hexStringToBytes(msg));
+				} catch (IOException e) {
+					Log.e(LOG_TAG, e.getMessage());
+					e.printStackTrace();
+				}
+				return true;
+			case "printQRCode":
+				try {
+					String data = args.getString(0);
+					int align = Integer.parseInt(args.getString(1));
+					int model = Integer.parseInt(args.getString(2));
+					int size = Integer.parseInt(args.getString(3));
+					int eclevel = Integer.parseInt(args.getString(4));
+					printQRCode(callbackContext, data, align, model, size, eclevel);
+				} catch (IOException e) {
+					Log.e(LOG_TAG, e.getMessage());
+					e.printStackTrace();
+				}
+				return true;
+			case "printBarcode":
+				try {
+					int system = Integer.parseInt(args.getString(0));
+					String data = args.getString(1);
+					int align = Integer.parseInt(args.getString(2));
+					int position = Integer.parseInt(args.getString(3));
+					int font = Integer.parseInt(args.getString(4));
+					int height = Integer.parseInt(args.getString(5));
+					printBarcode(callbackContext, system, data, align, position, font, height);
+				} catch (IOException e) {
+					Log.e(LOG_TAG, e.getMessage());
+					e.printStackTrace();
+				}
+				return true;
 		}
         return false;
     }
@@ -235,7 +233,14 @@ public class BluetoothPrinter extends CordovaPlugin {
     }
 
     // This will return the array list of paired bluetooth printers
-    void listBT(CallbackContext callbackContext) {
+	boolean listBT(CallbackContext callbackContext) {
+		if (ActivityCompat.checkSelfPermission(this.cordova.getActivity(), BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+				ActivityCompat.requestPermissions(this.cordova.getActivity(), new String[]{BLUETOOTH_CONNECT}, 1);
+				return false;
+			}
+		}
+
         BluetoothAdapter mBluetoothAdapter = null;
         String errMsg = null;
         try {
@@ -244,7 +249,7 @@ public class BluetoothPrinter extends CordovaPlugin {
                 errMsg = "NO BLUETOOTH ADAPTER AVAILABLE";
                 Log.e(LOG_TAG, errMsg);
                 callbackContext.error(errMsg);
-                return;
+                return false;
             }
             if (!mBluetoothAdapter.isEnabled()) {
                 Intent enableBluetooth = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
@@ -267,8 +272,10 @@ public class BluetoothPrinter extends CordovaPlugin {
                     json.put(device.getType());
                 }
                 callbackContext.success(json);
+				return true;
             } else {
                 callbackContext.error("NO BLUETOOTH DEVICE FOUND");
+				return false;
             }
             // Log.d(LOG_TAG, "Bluetooth Device Found: " + mmDevice.getName());
         } catch (Exception e) {
@@ -276,12 +283,20 @@ public class BluetoothPrinter extends CordovaPlugin {
             Log.e(LOG_TAG, errMsg);
             e.printStackTrace();
             callbackContext.error(errMsg);
+			return false;
         }
     }
 
     // This will find a bluetooth printer device
-    boolean findBT(CallbackContext callbackContext, String name) {
+	boolean findBT(CallbackContext callbackContext, String name) {
         try {
+			if (ActivityCompat.checkSelfPermission(this.cordova.getActivity(), BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+					ActivityCompat.requestPermissions(this.cordova.getActivity(), new String[]{BLUETOOTH_CONNECT}, 2);
+					return false;
+				}
+			}
+
             mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
             if (mBluetoothAdapter == null) {
                 Log.e(LOG_TAG, "NO BLUETOOTH ADAPTER AVAILABLE");
@@ -312,6 +327,12 @@ public class BluetoothPrinter extends CordovaPlugin {
     // Tries to open a connection to the bluetooth printer device
     boolean connectBT(CallbackContext callbackContext) throws IOException {
         try {
+			if (ActivityCompat.checkSelfPermission(this.cordova.getActivity(), BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+					ActivityCompat.requestPermissions(this.cordova.getActivity(), new String[]{BLUETOOTH_CONNECT}, 2);
+					return false;
+				}
+			}
             // Standard SerialPortService ID
             UUID uuid = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
             mmSocket = mmDevice.createRfcommSocketToServiceRecord(uuid);
@@ -393,12 +414,10 @@ public class BluetoothPrinter extends CordovaPlugin {
                 }
             });
             workerThread.start();
-        } catch (NullPointerException e) {
-            e.printStackTrace();
         } catch (Exception e) {
             e.printStackTrace();
         }
-    }
+	}
 
     // Print title formatted
     boolean printTitle(CallbackContext callbackContext, String msg, Integer size, Integer align) throws IOException {
@@ -661,7 +680,7 @@ public class BluetoothPrinter extends CordovaPlugin {
             bitmap = decodedBitmap;
             int mWidth = bitmap.getWidth();
             int mHeight = bitmap.getHeight();
-            
+
             bitmap = resizeImage(bitmap, width * resolution, mHeight);
 
             byte[] bt = decodeBitmapBase64(bitmap);
