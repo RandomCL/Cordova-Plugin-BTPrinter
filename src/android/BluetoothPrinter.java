@@ -88,7 +88,7 @@ public class BluetoothPrinter extends CordovaPlugin {
 	public void onRequestPermissionResult(int requestCode, String[] permissions, int[] grantResults) throws JSONException {
 		for(int r:grantResults) {
 			if(r == PackageManager.PERMISSION_DENIED){
-				String msg = "Debe dar permisos para usar bluetooth a la app en las configuraciones de su dispositivo.";
+				String msg = "Debe dar permisos para \"acceder a dispositivos cercanos\" en las configuraciones de su dispositivo.";
 				String title = "Sin permiso para usar Bluetooth";
 				new AlertDialog.Builder(this.cordova.getContext())
 					.setTitle(title)
