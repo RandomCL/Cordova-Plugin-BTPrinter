@@ -11,8 +11,8 @@ import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
 import org.json.JSONArray;
 import org.json.JSONException;
-
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
@@ -30,7 +30,6 @@ import android.graphics.Paint;
 import android.graphics.Bitmap.Config;
 import android.text.TextUtils;
 import android.util.Base64;
-import androidx.core.app.ActivityCompat;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
@@ -84,6 +83,22 @@ public class BluetoothPrinter extends CordovaPlugin {
 	public static final byte[] BARCODE_CODE39 = { 0x1D, 0x6B, 0x04 };
 	public static final byte[] BARCODE_ITF = { 0x1D, 0x6B, 0x05 };
 	public static final byte[] BARCODE_CODABAR = { 0x1D, 0x6B, 0x06 };
+
+	@Override
+	public void onRequestPermissionResult(int requestCode, String[] permissions, int[] grantResults) throws JSONException {
+		for(int r:grantResults) {
+			if(r == PackageManager.PERMISSION_DENIED){
+				String msg = "Debe dar permisos para usar bluetooth a la app en las configuraciones de su dispositivo.";
+				String title = "Sin permiso para usar Bluetooth";
+				new AlertDialog.Builder(this.cordova.getContext())
+					.setTitle(title)
+					.setMessage(msg)
+					.setPositiveButton("Aceptar", null)
+					.show();
+				return;
+			}
+		}
+	}
 
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
@@ -233,10 +248,11 @@ public class BluetoothPrinter extends CordovaPlugin {
     }
 
     // This will return the array list of paired bluetooth printers
+	@SuppressLint("MissingPermission")
 	boolean listBT(CallbackContext callbackContext) {
-		if (ActivityCompat.checkSelfPermission(this.cordova.getActivity(), BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+		if (!this.cordova.hasPermission(BLUETOOTH_CONNECT)) {
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-				ActivityCompat.requestPermissions(this.cordova.getActivity(), new String[]{BLUETOOTH_CONNECT}, 2);
+				this.cordova.requestPermissions(this, 2, new String[]{BLUETOOTH_CONNECT});
 				return false;
 			}
 		}
@@ -288,11 +304,12 @@ public class BluetoothPrinter extends CordovaPlugin {
     }
 
     // This will find a bluetooth printer device
+	@SuppressLint("MissingPermission")
 	boolean findBT(CallbackContext callbackContext, String name) {
         try {
-			if (ActivityCompat.checkSelfPermission(this.cordova.getActivity(), BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+			if (!this.cordova.hasPermission(BLUETOOTH_CONNECT)) {
 				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-					ActivityCompat.requestPermissions(this.cordova.getActivity(), new String[]{BLUETOOTH_CONNECT}, 2);
+					this.cordova.requestPermissions(this, 2, new String[]{BLUETOOTH_CONNECT});
 					return false;
 				}
 			}
@@ -325,11 +342,12 @@ public class BluetoothPrinter extends CordovaPlugin {
     }
 
     // Tries to open a connection to the bluetooth printer device
+	@SuppressLint("MissingPermission")
     boolean connectBT(CallbackContext callbackContext) throws IOException {
         try {
-			if (ActivityCompat.checkSelfPermission(this.cordova.getActivity(), BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+			if (!this.cordova.hasPermission(BLUETOOTH_CONNECT)) {
 				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-					ActivityCompat.requestPermissions(this.cordova.getActivity(), new String[]{BLUETOOTH_CONNECT}, 2);
+					this.cordova.requestPermissions(this, 2, new String[]{BLUETOOTH_CONNECT});
 					return false;
 				}
 			}
