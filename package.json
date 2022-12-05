@@ -1,6 +1,6 @@
 {
   "name": "cordova-plugin-btprinter",
-  "version": "0.2.3-dev",
+  "version": "0.2.4-dev",
   "description": "A cordova plugin for bluetooth printer for android platform.",
   "cordova": {
     "id": "cordova-plugin-btprinter",
@@ -25,13 +25,17 @@
     "ecosystem:cordova",
     "cordova-android"
   ],
-  "engines": [
+  "engines":  {
+    "name": "cordova",
+    "version": ">=3.0.0"
+  },
+  "author": "Cesar E. Balzer",
+  "contributors": [
     {
-      "name": "cordova",
-      "version": ">=3.0.0"
+      "name": "Fernando Torres",
+      "description": "API target lvl 12. Bluetooth permissions for Random ERP."
     }
   ],
-  "author": "Cesar E. Balzer",
   "license": "Apache 2.0",
   "bugs": {
     "url": "https://github.com/CesarBalzer/Cordova-Plugin-BTPrinter/issues"
