@@ -84,24 +84,89 @@ public class BluetoothPrinter extends CordovaPlugin {
 	public static final byte[] BARCODE_ITF = { 0x1D, 0x6B, 0x05 };
 	public static final byte[] BARCODE_CODABAR = { 0x1D, 0x6B, 0x06 };
 
+	private static final int REQUEST_BLUETOOTH_CONNECT = 2;
+
+	// Llamada pendiente mientras Android muestra el diálogo de permiso
+	// (BLUETOOTH_CONNECT es permiso de RUNTIME desde Android 12 / API 31).
+	// Se guarda en execute() y se re-ejecuta en onRequestPermissionResult()
+	// al conceder, para que la PRIMERA llamada no muera con un error engañoso
+	// ni obligue al usuario a reintentar a mano.
+	private String pendingAction;
+	private JSONArray pendingArgs;
+	private CallbackContext pendingCallback;
+
 	@Override
 	public void onRequestPermissionResult(int requestCode, String[] permissions, int[] grantResults) throws JSONException {
-		for(int r:grantResults) {
-			if(r == PackageManager.PERMISSION_DENIED){
-				String msg = "Debe dar permisos para \"acceder a dispositivos cercanos\" en las configuraciones de su dispositivo.";
-				String title = "Sin permiso para usar Bluetooth";
-				new AlertDialog.Builder(this.cordova.getContext())
-					.setTitle(title)
-					.setMessage(msg)
-					.setPositiveButton("Aceptar", null)
-					.show();
-				return;
+		if (requestCode != REQUEST_BLUETOOTH_CONNECT) {
+			return;
+		}
+
+		final String action = pendingAction;
+		final JSONArray args = pendingArgs;
+		final CallbackContext callback = pendingCallback;
+		pendingAction = null;
+		pendingArgs = null;
+		pendingCallback = null;
+
+		boolean granted = grantResults.length > 0;
+		for (int r : grantResults) {
+			if (r == PackageManager.PERMISSION_DENIED) {
+				granted = false;
+				break;
 			}
+		}
+
+		if (!granted) {
+			// Resolver SIEMPRE el callback JS: sin esto la app queda esperando
+			// una promesa que no se resuelve o recibe un error engañoso.
+			if (callback != null) {
+				callback.error("BLUETOOTH_PERMISSION_DENIED");
+			}
+			String msg = "Debe dar permisos para \"acceder a dispositivos cercanos\" en las configuraciones de su dispositivo.";
+			String title = "Sin permiso para usar Bluetooth";
+			new AlertDialog.Builder(this.cordova.getContext())
+				.setTitle(title)
+				.setMessage(msg)
+				.setPositiveButton("Aceptar", null)
+				.show();
+			return;
+		}
+
+		// Permiso concedido: re-ejecutar la llamada original fuera del hilo UI
+		// (connect abre un socket RFCOMM que bloquea varios segundos).
+		if (action != null && callback != null) {
+			this.cordova.getThreadPool().execute(new Runnable() {
+				@Override
+				public void run() {
+					try {
+						execute(action, args, callback);
+					} catch (Exception e) {
+						String errMsg = e.getMessage();
+						Log.e(LOG_TAG, errMsg != null ? errMsg : "error re-ejecutando " + action);
+						callback.error(errMsg != null ? errMsg : "BLUETOOTH ERROR");
+					}
+				}
+			});
 		}
 	}
 
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
+		// Choke-point ÚNICO del permiso BLUETOOTH_CONNECT (Android 12+):
+		// solo "list" y "connect" lo necesitan (getBondedDevices / RFCOMM).
+		// Si falta, se guarda la llamada, se pide el permiso y se retorna TRUE:
+		// retornar false haría que Cordova responda INVALID_ACTION y cierre el
+		// callback, descartando cualquier respuesta posterior.
+		if (("list".equals(action) || "connect".equals(action))
+				&& Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+				&& !this.cordova.hasPermission(BLUETOOTH_CONNECT)) {
+			pendingAction = action;
+			pendingArgs = args;
+			pendingCallback = callbackContext;
+			this.cordova.requestPermissions(this, REQUEST_BLUETOOTH_CONNECT, new String[]{BLUETOOTH_CONNECT});
+			return true;
+		}
+
 		switch (action) {
 			case "status":
 				return checkBTStatus(callbackContext);
@@ -250,13 +315,7 @@ public class BluetoothPrinter extends CordovaPlugin {
     // This will return the array list of paired bluetooth printers
 	@SuppressLint("MissingPermission")
 	boolean listBT(CallbackContext callbackContext) {
-		if (!this.cordova.hasPermission(BLUETOOTH_CONNECT)) {
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-				this.cordova.requestPermissions(this, 2, new String[]{BLUETOOTH_CONNECT});
-				return false;
-			}
-		}
-
+		// El permiso BLUETOOTH_CONNECT ya fue garantizado por execute().
         BluetoothAdapter mBluetoothAdapter = null;
         String errMsg = null;
         try {
@@ -307,13 +366,7 @@ public class BluetoothPrinter extends CordovaPlugin {
 	@SuppressLint("MissingPermission")
 	boolean findBT(CallbackContext callbackContext, String name) {
         try {
-			if (!this.cordova.hasPermission(BLUETOOTH_CONNECT)) {
-				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-					this.cordova.requestPermissions(this, 2, new String[]{BLUETOOTH_CONNECT});
-					return false;
-				}
-			}
-
+			// El permiso BLUETOOTH_CONNECT ya fue garantizado por execute().
             mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
             if (mBluetoothAdapter == null) {
                 Log.e(LOG_TAG, "NO BLUETOOTH ADAPTER AVAILABLE");
@@ -331,7 +384,9 @@ public class BluetoothPrinter extends CordovaPlugin {
                     }
                 }
             }
-            Log.d(LOG_TAG, "BLUETOOTH DEVICE FOUND: " + mmDevice.getName());
+            // No emparejada: NO tocar mmDevice acá (podría ser null o quedar
+            // apuntando a un dispositivo anterior → NPE/estado sucio).
+            Log.d(LOG_TAG, "BLUETOOTH DEVICE NOT FOUND: " + name);
         } catch (Exception e) {
             String errMsg = e.getMessage();
             Log.e(LOG_TAG, errMsg);
@@ -345,12 +400,7 @@ public class BluetoothPrinter extends CordovaPlugin {
 	@SuppressLint("MissingPermission")
     boolean connectBT(CallbackContext callbackContext) throws IOException {
         try {
-			if (!this.cordova.hasPermission(BLUETOOTH_CONNECT)) {
-				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-					this.cordova.requestPermissions(this, 2, new String[]{BLUETOOTH_CONNECT});
-					return false;
-				}
-			}
+			// El permiso BLUETOOTH_CONNECT ya fue garantizado por execute().
             // Standard SerialPortService ID
             UUID uuid = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
             mmSocket = mmDevice.createRfcommSocketToServiceRecord(uuid);
