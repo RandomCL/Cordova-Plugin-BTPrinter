@@ -661,12 +661,47 @@ public class BluetoothPrinter extends CordovaPlugin {
         return false;
     }
 
+    /**
+     * Ancho maximo, en pixeles, que una impresora termica puede imprimir (80mm a 203dpi).
+     * Se usa como cota para el downsampling: decodeBitmapUrl emite UN BIT POR PIXEL usando el ancho
+     * NATIVO del bitmap, asi que reducir una imagen que ya cabe cambiaria el ancho impreso. Solo se
+     * reduce por encima de esta cota, donde el exceso no se puede imprimir de todos modos.
+     */
+    private static final int MAX_PRINTER_WIDTH_PX = 576;
+
+    /**
+     * Calcula el inSampleSize (potencia de 2) necesario para que el ancho del bitmap no exceda
+     * MAX_PRINTER_WIDTH_PX. Devuelve 1 (sin reduccion) si la imagen ya cabe, de modo que la salida
+     * impresa sea IDENTICA a la de antes para cualquier imagen imprimible.
+     */
+    private static int calculateInSampleSize(int srcWidth) {
+        int inSampleSize = 1;
+        while (srcWidth > MAX_PRINTER_WIDTH_PX && (srcWidth / (inSampleSize * 2)) >= MAX_PRINTER_WIDTH_PX) {
+            inSampleSize *= 2;
+        }
+        return inSampleSize;
+    }
+
     // send url from image
     boolean printImageUrl(CallbackContext callbackContext, String msg, Integer align) throws IOException {
         try {
             Log.d(LOG_TAG, "Preparar para impressao, passando o caminho da imagem -> " + msg);
             Log.d(LOG_TAG, "ALIGN -> " + align);
-            Bitmap bmp = BitmapFactory.decodeFile(msg);
+
+            // Primera pasada: solo leer las dimensiones, SIN asignar memoria para los pixeles.
+            // Cargar a resolucion completa puede reventar la memoria con imagenes grandes.
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(msg, bounds);
+
+            // Segunda pasada: decodificar ya reducido si la imagen excede el ancho imprimible.
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inSampleSize = calculateInSampleSize(bounds.outWidth);
+            if (options.inSampleSize > 1) {
+                Log.d(LOG_TAG, "IMAGEN REDUCIDA: ancho " + bounds.outWidth + " > " + MAX_PRINTER_WIDTH_PX
+                        + " -> inSampleSize " + options.inSampleSize);
+            }
+            Bitmap bmp = BitmapFactory.decodeFile(msg, options);
             if (bmp != null) {
                 byte[] command = decodeBitmapUrl(bmp);
                 Log.d(LOG_TAG, "SWITCH ALIGN -> " + align);
